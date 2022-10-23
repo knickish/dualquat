@@ -10,7 +10,7 @@ A lightweight, zero-dependency 3d math library for use in Dual Quaternion based 
 
 ## Optional features
 - [`nanoserde`, `serde`, `speedy`] - Serialization of all types
-- [`glam`, `nalgebra`] - Conversion to/from equivalent types for interop
+- [`glam`, `nalgebra`, `mint`] - Conversion to/from equivalent types for interop
 
 ### Development status 
 This is being actively worked on. PRs will be accepted for either more tests or functionality.

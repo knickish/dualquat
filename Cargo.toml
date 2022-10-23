@@ -1,6 +1,6 @@
 [package]
 name = "dualquat"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Quaternion and Dual Quaternion math library for high-precision physics simulation"
@@ -8,6 +8,7 @@ repository = "https://github.com/knickish/dualquat"
 
 [dependencies]
 glam        = { version = "^0.21.0", optional = true }
+mint        = { version = "0.5.9", optional = true }
 nalgebra    = { version = "^0.31.0", optional = true, default-features = false }
 nanoserde   = { version = "^0.1.30", optional = true }
 serde       = { version = "^1.0.0", optional = true, features = ["derive"] }
@@ -20,6 +21,7 @@ speedy      = { version = "^0.8.0", optional = true }
 "speedy"    = ["dep:speedy"]
 "glam"      = ["dep:glam"]
 "nalgebra"  = ["dep:nalgebra"]
+"mint"      = ["dep:mint"]
 
 [dev-dependencies]
 pretty_assertions = "1"
