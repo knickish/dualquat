@@ -16,6 +16,5 @@ A lightweight, zero-dependency 3d math library for use in Dual Quaternion based 
 This is being actively worked on. PRs will be accepted for either more tests or functionality.
 
 ### TODO
-- Serialization tests for supported libs
 - Use approx for tests
 - Benchmarks
