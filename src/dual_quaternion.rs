@@ -346,6 +346,8 @@ mod test {
     use crate::test_shared::{gen_rand, gen_rand_dq, Class};
 
     mod test_basic_operations {
+        use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
+
         use super::*;
         use pretty_assertions::assert_eq;
 
@@ -383,6 +385,15 @@ mod test {
             };
             let actual_result = lhs.cross(rhs);
             assert_eq!(actual_result, desired_result);
+        }
+
+        #[test]
+        fn test_interpolate() {
+            let first = DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2);
+            let second = DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2 + FRAC_PI_3);
+            let interpolated_mid = DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2 + FRAC_PI_3/2.0).normalized();
+            let actual_mid = first.interpolate(&second, 0.5).normalized();
+            assert_eq!(interpolated_mid, actual_mid);
         }
 
         #[test]
