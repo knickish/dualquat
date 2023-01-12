@@ -309,6 +309,25 @@ impl Quaternion {
     pub fn error(self, other: Self) -> Quaternion {
         other.conjugate() * self
     }
+
+    pub fn slerp(self, mut end: Self, s: f64) -> Self {
+        // http://number-none.com/product/Understanding%20Slerp,%20Then%20Not%20Using%20It/
+        // simplified version of glam's quat::slerp
+        let mut dot = self.dot(end).scalar;
+        if dot < 0.0 {
+            end = -end;
+            dot = -dot;
+        }
+
+
+        let theta = dot.acos();
+
+        let scale1 = (theta * (1.0 - s)).sin();
+        let scale2 = (theta * s).sin();
+        let theta_sin = theta.sin();
+
+        self.mul(scale1).add(end.mul(scale2)).mul(theta_sin.recip())
+    }
 }
 
 #[cfg(test)]

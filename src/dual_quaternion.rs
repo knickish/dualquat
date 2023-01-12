@@ -328,12 +328,12 @@ impl DualQuaternion {
     }
 
     pub fn interpolate(&self, other: &Self, balance: f64) -> Self {
-        // Geometric Skinning with Approximate
-        // Dual Quaternion Blending
-        let top = self * (1.0 - balance) + other * balance;
-        let bottom = top.norm();
-        (1.0 / bottom) * top
-    }
+        let real = self.real.slerp( other.real, balance);
+        let self_loc =  self.location_from_pose();
+        let diff = other.location_from_pose() - self_loc;
+        let change = diff * balance.recip();
+        DualQuaternion::from_attitude_location(real, self_loc + change)
+    }   
 
     pub fn error(self, other: Self) -> Self {
         (self.conjugate() * other).normalized()
