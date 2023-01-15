@@ -1,4 +1,3 @@
-
 use crate::{Quaternion, Vec3};
 use core::{
     fmt::Display,
@@ -34,7 +33,8 @@ pub struct DualQuaternion {
 
 impl Display for DualQuaternion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,
+        write!(
+            f,
             "real: {{scalar: {}, i: {}, j: {}, k: {}}} dual: {{scalar: {}, i: {}, j: {}, k: {}}}",
             self.real.scalar,
             self.real.vector.i,
@@ -175,7 +175,10 @@ impl DualQuaternion {
         yaw: f64,
     ) -> DualQuaternion {
         // https://www.sedris.org/wg8home/Documents/WG80485.pdf
-        let mut ret = DualQuaternion { real: Quaternion::from_euler_angles(roll, pitch, yaw), ..Default::default() };
+        let mut ret = DualQuaternion {
+            real: Quaternion::from_euler_angles(roll, pitch, yaw),
+            ..Default::default()
+        };
 
         ret.encode_translation(Vec3::new(x, y, z));
         ret
@@ -200,6 +203,10 @@ impl DualQuaternion {
         tmp.vector
     }
 
+    pub fn relative_position(self, other: Self) -> Self {
+        other.conjugate() * self
+    }
+
     pub fn from_attitude_location(attitude: Quaternion, location: Vec3) -> DualQuaternion {
         let mut ret = DualQuaternion {
             real: attitude,
@@ -217,11 +224,9 @@ impl DualQuaternion {
         let sqy: f64 = quat.vector.j * quat.vector.j;
         let sqz: f64 = quat.vector.k * quat.vector.k;
         Vec3::new(
-            (quat.vector.j * quat.vector.k + quat.vector.i * quat.scalar)
-                .atan2(0.5 - (sqx + sqy)), //roll
+            (quat.vector.j * quat.vector.k + quat.vector.i * quat.scalar).atan2(0.5 - (sqx + sqy)), //roll
             (-2.0 * (quat.vector.i * quat.vector.k - quat.vector.j * quat.scalar)).asin(), //pitch
-            (quat.vector.i * quat.vector.j + quat.scalar * quat.vector.k)
-                .atan2(0.5 - (sqy + sqz)), //yaw
+            (quat.vector.i * quat.vector.j + quat.scalar * quat.vector.k).atan2(0.5 - (sqy + sqz)), //yaw
         )
     }
 
@@ -328,12 +333,12 @@ impl DualQuaternion {
     }
 
     pub fn interpolate(&self, other: &Self, balance: f64) -> Self {
-        let real = self.real.slerp( other.real, balance);
-        let self_loc =  self.location_from_pose();
+        let real = self.real.slerp(other.real, balance);
+        let self_loc = self.location_from_pose();
         let diff = other.location_from_pose() - self_loc;
         let change = diff * balance.recip();
         DualQuaternion::from_attitude_location(real, self_loc + change)
-    }   
+    }
 
     pub fn error(self, other: Self) -> Self {
         (self.conjugate() * other).normalized()
@@ -389,11 +394,68 @@ mod test {
 
         #[test]
         fn test_interpolate() {
-            let first = DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2);
-            let second = DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2 + FRAC_PI_3);
-            let interpolated_mid = DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2 + FRAC_PI_3/2.0).normalized();
+            let first =
+                DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2);
+            let second = DualQuaternion::pose_from_location_tait_bryan(
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                FRAC_PI_2 + FRAC_PI_3,
+            );
+            let interpolated_mid = DualQuaternion::pose_from_location_tait_bryan(
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                FRAC_PI_2 + FRAC_PI_3 / 2.0,
+            )
+            .normalized();
             let actual_mid = first.interpolate(&second, 0.5).normalized();
             assert_eq!(interpolated_mid, actual_mid);
+        }
+
+        #[test]
+        fn test_relative_position() {
+            {
+                let first = DualQuaternion::from_attitude_location(
+                    Quaternion::unit(),
+                    Vec3::new(10.0, 20.0, 30.0),
+                );
+                let second = DualQuaternion::from_attitude_location(
+                    Quaternion::unit(),
+                    Vec3::new(5.0, 10.0, 15.0),
+                );
+                let second_relative_to_first = second.relative_position(first).normalized();
+                let actual_relative = DualQuaternion::from_attitude_location(
+                    Quaternion::unit(),
+                    Vec3::new(-5.0, -10.0, -15.0),
+                )
+                .normalized();
+                dbg!(second_relative_to_first.location_from_pose());
+                assert_eq!(second_relative_to_first, actual_relative);
+            }
+
+            {
+                let second = DualQuaternion::from_attitude_location(
+                    Quaternion::unit(),
+                    Vec3::new(10.0, 20.0, 30.0),
+                );
+                let first = DualQuaternion::from_attitude_location(
+                    Quaternion::unit(),
+                    Vec3::new(5.0, 10.0, 15.0),
+                );
+                let second_relative_to_first = second.relative_position(first).normalized();
+                let actual_relative = DualQuaternion::from_attitude_location(
+                    Quaternion::unit(),
+                    Vec3::new(5.0, 10.0, 15.0),
+                )
+                .normalized();
+                dbg!(second_relative_to_first.location_from_pose());
+                assert_eq!(second_relative_to_first, actual_relative);
+            }
         }
 
         #[test]

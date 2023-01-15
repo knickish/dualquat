@@ -1,4 +1,4 @@
-use crate::{Quaternion, Vec3, DualQuaternion};
+use crate::{DualQuaternion, Quaternion, Vec3};
 
 pub const FORWARD: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 pub const UP: Vec3 = Vec3::new(0.0, 0.0, 1.0);
