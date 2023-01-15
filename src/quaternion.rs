@@ -291,10 +291,7 @@ impl Quaternion {
 
     // #[cfg(unused)]
     pub fn norm_squared(self) -> f64 {
-        self.scalar.powi(2)
-            + self.vector.i.powi(2)
-            + self.vector.j.powi(2)
-            + self.vector.k.powi(2)
+        self.scalar.powi(2) + self.vector.i.powi(2) + self.vector.j.powi(2) + self.vector.k.powi(2)
     }
 
     pub fn normalized(self) -> Self {
@@ -318,7 +315,6 @@ impl Quaternion {
             end = -end;
             dot = -dot;
         }
-
 
         let theta = dot.acos();
 

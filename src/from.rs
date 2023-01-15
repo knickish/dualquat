@@ -1,5 +1,5 @@
 #[cfg(feature = "glam")]
-mod glam {    
+mod glam {
     impl From<glam::DQuat> for crate::Quaternion {
         fn from(quat: glam::DQuat) -> Self {
             Self {
@@ -175,7 +175,12 @@ mod nalgebra {
 
     impl From<crate::Quaternion> for nalgebra::Quaternion<f64> {
         fn from(quat: crate::Quaternion) -> Self {
-            nalgebra::Quaternion::<f64>::new(quat.scalar, quat.vector.i, quat.vector.j, quat.vector.k)
+            nalgebra::Quaternion::<f64>::new(
+                quat.scalar,
+                quat.vector.i,
+                quat.vector.j,
+                quat.vector.k,
+            )
         }
     }
 
