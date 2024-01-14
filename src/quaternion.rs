@@ -1,6 +1,7 @@
-use crate::Vec3;
+use crate::{TaitBryan, Vec3};
 use core::f64::consts::PI;
 use core::ops::{Add, AddAssign, Mul, Neg, Sub};
+use std::fmt::Display;
 
 #[cfg(feature = "nanoserde")]
 use nanoserde::{DeBin, SerBin};
@@ -19,11 +20,7 @@ impl Add for Quaternion {
     fn add(self, other: Self) -> Self {
         Self {
             scalar: self.scalar + other.scalar,
-            vector: Vec3::new(
-                self.vector.i + other.vector.i,
-                self.vector.j + other.vector.j,
-                self.vector.k + other.vector.k,
-            ),
+            vector: self.vector + other.vector,
         }
     }
 }
@@ -166,11 +163,28 @@ impl PartialEq for Quaternion {
     }
 }
 
+impl Display for Quaternion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "scalar: {}, i: {}, j: {}, k: {}",
+            self.scalar, self.vector.i, self.vector.j, self.vector.k,
+        )
+    }
+}
+
 impl Quaternion {
-    pub fn unit() -> Quaternion {
+    pub const fn unit() -> Quaternion {
         Quaternion {
             scalar: 1.0,
-            vector: Vec3::default(),
+            vector: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    pub const fn zero() -> Quaternion {
+        Quaternion {
+            scalar: 0.0,
+            vector: Vec3::new(0.0, 0.0, 0.0),
         }
     }
 
@@ -185,7 +199,7 @@ impl Quaternion {
         .normalized()
     }
 
-    pub fn from_euler_angles(roll: f64, pitch: f64, yaw: f64) -> Quaternion {
+    pub fn from_tait_bryan(TaitBryan { roll, pitch, yaw }: TaitBryan) -> Quaternion {
         let (sr, cr) = (roll * 0.5f64).sin_cos();
         let (sp, cp) = (pitch * 0.5f64).sin_cos();
         let (sy, cy) = (yaw * 0.5f64).sin_cos();
@@ -201,11 +215,11 @@ impl Quaternion {
     }
 
     pub fn from_axis_angle(axis: Vec3, angle: f64) -> Quaternion {
-        let s = (angle / 2.0).sin();
-        let u = axis.unit();
+        let (s, c) = (angle / 2.0).sin_cos();
+        let u = axis.unit() * s;
         Quaternion {
-            scalar: (angle / 2.0).cos(),
-            vector: u * s,
+            scalar: c,
+            vector: u,
         }
     }
 
@@ -233,7 +247,6 @@ impl Quaternion {
         *self * forward
     }
 
-    /// source is the forward vector for the space by default
     pub fn look_along(dir: Vec3, forward: Vec3, up: Vec3) -> Quaternion {
         let dest = dir.unit();
         let source = forward.unit();
@@ -294,13 +307,23 @@ impl Quaternion {
         self.scalar.powi(2) + self.vector.i.powi(2) + self.vector.j.powi(2) + self.vector.k.powi(2)
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn normalized(self) -> Self {
         let norm = self.norm();
-        debug_assert!(norm > 0.0);
+        debug_assert!(norm > 0.0, "{}", self);
 
         let ret = (1.0 / norm) * self;
         debug_assert!(ret.norm() - 1.0f64 < 10.0 * f64::EPSILON);
         ret
+    }
+
+    #[cfg(test)]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn normalized_match_sign(self) -> Self {
+        match self.normalized() {
+            neg if neg.scalar.is_sign_negative() => neg.neg(),
+            leave => leave,
+        }
     }
 
     pub fn error(self, other: Self) -> Quaternion {
@@ -323,6 +346,15 @@ impl Quaternion {
         let theta_sin = theta.sin();
 
         self.mul(scale1).add(end.mul(scale2)).mul(theta_sin.recip())
+    }
+
+    pub fn relative_to(self, other: Self) -> Self {
+        other.conjugate() * self
+    }
+
+    /// Apply another quaternion as a transformation
+    pub fn transform_by(self, transform: Self) -> Self {
+        transform * self * transform.conjugate()
     }
 }
 
@@ -460,7 +492,9 @@ mod test {
     }
 
     mod orientation_tests {
-        use crate::test_shared::gen_rand_vec;
+        use std::f64::consts::FRAC_2_PI;
+
+        use crate::test_shared::{eps_equal, gen_rand_vec, RIGHT};
 
         use super::*;
 
@@ -485,6 +519,64 @@ mod test {
                     pretty_assertions::assert_eq!(end_orient.get_heading(FORWARD), end_dir);
                 }
             }
+        }
+
+        #[test]
+        fn test_full_rotate_by_parts() {
+            let eps = f32::EPSILON as f64 * 10.0;
+
+            let start = Quaternion::look_along(FORWARD, FORWARD, UP);
+            let reverse = Quaternion::look_along(-FORWARD, FORWARD, UP);
+
+            {
+                // Yaw
+                let first_rotate = Quaternion::from_axis_angle(UP, PI - f32::EPSILON as f64);
+
+                assert!(
+                    eps_equal(start * first_rotate, reverse, eps),
+                    "\nstart: {}\nrotate: {},\nreverse: {},\nrotated: {}",
+                    start,
+                    first_rotate,
+                    reverse,
+                    start * first_rotate
+                );
+
+                let second_rotate = Quaternion::from_axis_angle(UP, PI - f32::EPSILON as f64);
+
+                assert!(
+                    eps_equal(
+                        (start * first_rotate * second_rotate)
+                            .normalized_match_sign()
+                            .relative_to(start),
+                        Quaternion::unit(),
+                        eps
+                    ),
+                    "\nrotate: {},\nstart: {},\nrotated: {}",
+                    first_rotate * second_rotate,
+                    start,
+                    start * first_rotate * second_rotate
+                );
+            }
+
+            let second_rotate = Quaternion::from_axis_angle(RIGHT, FRAC_2_PI);
+
+            assert!(
+                eps_equal(start.transform_by(second_rotate), start, eps),
+                "\nrotate: {},\nstart: {},\nrotated: {}",
+                second_rotate,
+                start,
+                start.transform_by(second_rotate)
+            );
+
+            let third_rotate = Quaternion::from_axis_angle(RIGHT, FRAC_2_PI);
+
+            assert!(
+                eps_equal(start.transform_by(third_rotate), start, eps),
+                "\nrotate: {},\nstart: {},\nrotated: {}",
+                third_rotate,
+                start,
+                third_rotate
+            );
         }
     }
 }
