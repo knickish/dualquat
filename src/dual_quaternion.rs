@@ -166,7 +166,7 @@ impl DualQuaternion {
         }
     }
 
-    pub fn pose_from_location_tait_bryan(
+    pub fn from_location_tait_bryan(
         x: f64,
         y: f64,
         z: f64,
@@ -184,7 +184,7 @@ impl DualQuaternion {
         ret
     }
 
-    pub fn pose_from_location_heading(
+    pub fn from_location_heading(
         x: f64,
         y: f64,
         z: f64,
@@ -195,10 +195,10 @@ impl DualQuaternion {
         let heading = heading.unit();
         let yaw = (heading.j / heading.i).atan();
         let pitch = (heading.k).asin();
-        DualQuaternion::pose_from_location_tait_bryan(x, y, z, 0.0, pitch, yaw)
+        DualQuaternion::from_location_tait_bryan(x, y, z, 0.0, pitch, yaw)
     }
 
-    pub fn location_from_pose(self) -> Vec3 {
+    pub fn to_location(self) -> Vec3 {
         let tmp: Quaternion = 2.0 * (self.dual * (self.real.conjugate()));
         tmp.vector
     }
@@ -213,8 +213,12 @@ impl DualQuaternion {
             dual: Quaternion::default(),
         };
         ret.encode_translation(location);
-        debug_assert_eq!(ret.location_from_pose(), location);
+        debug_assert_eq!(ret.to_location(), location);
         ret
+    }
+
+    pub fn to_attitude_location(self) -> (Quaternion, Vec3) {
+        (self.real, self.to_location())
     }
 
     pub fn euler_angles_from_pose(self) -> Vec3 {
@@ -232,7 +236,7 @@ impl DualQuaternion {
 
     /// from the current location, find the necessary transformation to look towards a point
     pub fn lookat(&self, location: Vec3, forward: Vec3, up: Vec3) -> DualQuaternion {
-        let current_location = self.location_from_pose();
+        let current_location = self.to_location();
         let desired_heading = location - current_location;
         debug_assert!(desired_heading.norm_squared() > f32::EPSILON as f64);
         let desired_heading = desired_heading.unit();
@@ -245,7 +249,7 @@ impl DualQuaternion {
         target.encode_translation(current_location);
         debug_assert_eq!(target.real * forward, desired_heading);
         debug_assert_eq!(target.get_heading(forward), desired_heading);
-        debug_assert_eq!(target.location_from_pose(), current_location);
+        debug_assert_eq!(target.to_location(), current_location);
         self.error(target)
     }
 
@@ -320,22 +324,43 @@ impl DualQuaternion {
             } * self.real;
     }
 
+    /// translate self using using frame coordinates
+    pub fn translate_absolute(self, trans: Vec3) -> Self {
+        Self {
+            real: Quaternion::unit(),
+            dual: Quaternion {
+                scalar: 0.0,
+                vector: trans * 0.5,
+            } * Quaternion::unit(),
+        } * self
+    }
+
+    /// translate self using body coordinates
+    pub fn translate_relative(self, trans: Vec3) -> Self {
+        Self {
+            real: self.real,
+            dual: Quaternion {
+                scalar: 0.0,
+                vector: trans * 0.5,
+            } * self.real,
+        } * self
+    }
+
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn normalized(self) -> Self {
-        let trans = self.location_from_pose();
+        let trans = self.to_location();
         let mut ret = DualQuaternion {
             real: self.real.normalized(),
             dual: Quaternion::default(),
         };
         ret.encode_translation(trans);
-        debug_assert!(ret.real.dot(ret.real) == Quaternion::unit());
-        debug_assert!(ret.real.dot(ret.dual) == Quaternion::default());
         ret
     }
 
     pub fn interpolate(&self, other: &Self, balance: f64) -> Self {
         let real = self.real.slerp(other.real, balance);
-        let self_loc = self.location_from_pose();
-        let diff = other.location_from_pose() - self_loc;
+        let self_loc = self.to_location();
+        let diff = other.to_location() - self_loc;
         let change = diff * balance.recip();
         DualQuaternion::from_attitude_location(real, self_loc + change)
     }
@@ -395,8 +420,8 @@ mod test {
         #[test]
         fn test_interpolate() {
             let first =
-                DualQuaternion::pose_from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2);
-            let second = DualQuaternion::pose_from_location_tait_bryan(
+                DualQuaternion::from_location_tait_bryan(0.0, 0.0, 0.0, 0.0, 0.0, FRAC_PI_2);
+            let second = DualQuaternion::from_location_tait_bryan(
                 0.0,
                 0.0,
                 0.0,
@@ -404,7 +429,7 @@ mod test {
                 0.0,
                 FRAC_PI_2 + FRAC_PI_3,
             );
-            let interpolated_mid = DualQuaternion::pose_from_location_tait_bryan(
+            let interpolated_mid = DualQuaternion::from_location_tait_bryan(
                 0.0,
                 0.0,
                 0.0,
@@ -434,7 +459,7 @@ mod test {
                     Vec3::new(-5.0, -10.0, -15.0),
                 )
                 .normalized();
-                dbg!(second_relative_to_first.location_from_pose());
+                dbg!(second_relative_to_first.to_location());
                 assert_eq!(second_relative_to_first, actual_relative);
             }
 
@@ -453,7 +478,7 @@ mod test {
                     Vec3::new(5.0, 10.0, 15.0),
                 )
                 .normalized();
-                dbg!(second_relative_to_first.location_from_pose());
+                dbg!(second_relative_to_first.to_location());
                 assert_eq!(second_relative_to_first, actual_relative);
             }
         }
@@ -667,7 +692,7 @@ mod test {
 
                 assert!(eps_equal(
                     start_loc.into_iter(),
-                    final_dual_pose.location_from_pose().into_iter(),
+                    final_dual_pose.to_location().into_iter(),
                     eps
                 ));
                 assert!(eps_equal(
@@ -675,6 +700,95 @@ mod test {
                     final_dual_pose.get_heading(FORWARD).into_iter(),
                     eps
                 ));
+            }
+        }
+    }
+
+    mod displacement_tests {
+        use super::*;
+        use crate::test_shared::{eps_equal, gen_rand_vec, FORWARD, UP};
+
+        #[test]
+        fn test_displace_absolute() {
+            let eps = f32::EPSILON as f64;
+
+            for _ in 0..10000 {
+                let start_loc = gen_rand_vec();
+                let start_dir = gen_rand_vec();
+                let start_orient = Quaternion::look_along(start_dir, FORWARD, UP);
+                let start = DualQuaternion::from_attitude_location(start_orient, start_loc);
+                let dest_location = {
+                    let mut lookat_location = gen_rand_vec();
+                    while eps_equal(lookat_location.into_iter(), start_loc.into_iter(), eps) {
+                        lookat_location = gen_rand_vec();
+                    }
+                    lookat_location
+                };
+                let final_dual_pose = start.translate_absolute(dest_location - start_loc);
+
+                assert!(
+                    eps_equal(
+                        dest_location.into_iter(),
+                        final_dual_pose.to_location().into_iter(),
+                        eps
+                    ),
+                    "{:?}, {:?}, {:?}",
+                    start_loc,
+                    dest_location,
+                    final_dual_pose.to_location()
+                );
+                assert!(
+                    eps_equal(
+                        start_orient.into_iter(),
+                        final_dual_pose.to_attitude_location().0.into_iter(),
+                        eps
+                    ),
+                    "{:?}, {:?}",
+                    dest_location,
+                    final_dual_pose.to_location()
+                );
+            }
+        }
+
+        #[test]
+        fn test_displace_relative() {
+            let eps = f32::EPSILON as f64;
+
+            for _ in 0..10000 {
+                let start_loc = gen_rand_vec();
+                let start_dir = Quaternion::unit().get_heading(FORWARD.neg());
+                let start_orient = Quaternion::look_along(start_dir, FORWARD, UP);
+                let start = DualQuaternion::from_attitude_location(start_orient, start_loc);
+                let dest_location = {
+                    let mut lookat_location = gen_rand_vec();
+                    while eps_equal(lookat_location.into_iter(), start_loc.into_iter(), eps) {
+                        lookat_location = gen_rand_vec();
+                    }
+                    lookat_location
+                };
+                let final_dual_pose = start.translate_relative(dest_location - start_loc);
+
+                assert!(
+                    eps_equal(
+                        dest_location.into_iter(),
+                        final_dual_pose.to_location().into_iter(),
+                        eps
+                    ),
+                    "{:?}, {:?}, {:?}",
+                    start_loc,
+                    dest_location,
+                    final_dual_pose.to_location()
+                );
+                assert!(
+                    eps_equal(
+                        start_orient.into_iter(),
+                        final_dual_pose.to_attitude_location().0.into_iter(),
+                        eps
+                    ),
+                    "{:?}, {:?}",
+                    dest_location,
+                    final_dual_pose.to_location()
+                );
             }
         }
     }

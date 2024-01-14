@@ -147,6 +147,14 @@ impl Vec3 {
         (self.distance(start) + self.distance(end) - start.distance(end)).abs() < f64::EPSILON
     }
 
+    pub fn splat(value: f64) -> Self {
+        Self {
+            i: value,
+            j: value,
+            k: value,
+        }
+    }
+
     #[cfg(test)]
     fn exact_eq(self, other: Self) -> bool {
         (self.i == other.i) && (self.j == other.j) && (self.k == other.k)
