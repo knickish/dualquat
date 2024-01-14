@@ -19,11 +19,7 @@ impl Add for Quaternion {
     fn add(self, other: Self) -> Self {
         Self {
             scalar: self.scalar + other.scalar,
-            vector: Vec3::new(
-                self.vector.i + other.vector.i,
-                self.vector.j + other.vector.j,
-                self.vector.k + other.vector.k,
-            ),
+            vector: self.vector + other.vector,
         }
     }
 }
@@ -294,9 +290,10 @@ impl Quaternion {
         self.scalar.powi(2) + self.vector.i.powi(2) + self.vector.j.powi(2) + self.vector.k.powi(2)
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn normalized(self) -> Self {
         let norm = self.norm();
-        debug_assert!(norm > 0.0);
+        debug_assert!(norm > 0.0, "{:?}", self);
 
         let ret = (1.0 / norm) * self;
         debug_assert!(ret.norm() - 1.0f64 < 10.0 * f64::EPSILON);
