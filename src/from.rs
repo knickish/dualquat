@@ -1,6 +1,7 @@
 #[cfg(feature = "glam")]
 mod glam {
     impl From<glam::DQuat> for crate::Quaternion {
+        #[inline]
         fn from(quat: glam::DQuat) -> Self {
             Self {
                 scalar: quat.w,
@@ -14,6 +15,7 @@ mod glam {
     }
 
     impl From<glam::Quat> for crate::Quaternion {
+        #[inline]
         fn from(quat: glam::Quat) -> Self {
             Self {
                 scalar: quat.w as f64,
@@ -27,6 +29,7 @@ mod glam {
     }
 
     impl From<glam::Vec3> for crate::Vec3 {
+        #[inline]
         fn from(vec: glam::Vec3) -> Self {
             Self {
                 i: vec.x as f64,
@@ -37,6 +40,7 @@ mod glam {
     }
 
     impl From<glam::DVec3> for crate::Vec3 {
+        #[inline]
         fn from(vec: glam::DVec3) -> Self {
             Self {
                 i: vec.x,
@@ -47,6 +51,7 @@ mod glam {
     }
 
     impl From<crate::Quaternion> for glam::DQuat {
+        #[inline]
         fn from(quat: crate::Quaternion) -> Self {
             Self {
                 x: quat.vector.i,
@@ -58,6 +63,7 @@ mod glam {
     }
 
     impl From<crate::Quaternion> for glam::Quat {
+        #[inline]
         fn from(quat: crate::Quaternion) -> Self {
             Self::from_xyzw(
                 quat.vector.i as f32,
@@ -69,6 +75,7 @@ mod glam {
     }
 
     impl From<crate::Vec3> for glam::Vec3 {
+        #[inline]
         fn from(vec: crate::Vec3) -> Self {
             Self {
                 x: vec.i as f32,
@@ -79,12 +86,41 @@ mod glam {
     }
 
     impl From<crate::Vec3> for glam::DVec3 {
+        #[inline]
         fn from(vec: crate::Vec3) -> Self {
             Self {
                 x: vec.i,
                 y: vec.j,
                 z: vec.k,
             }
+        }
+    }
+
+    impl From<crate::DualQuaternion> for glam::DMat4 {
+        #[inline]
+        fn from(dq: crate::DualQuaternion) -> Self {
+            let w = dq.real.scalar;
+            let crate::Vec3 { i: x, j: y, k: z } = dq.real.vector;
+
+            let mut mat = glam::DMat4::IDENTITY;
+
+            mat.col_mut(0)[0] = w * w + x * x - y * y - z * z;
+            mat.col_mut(0)[1] = 2. * x * y + 2. * w * z;
+            mat.col_mut(0)[2] = 2. * x * z - 2. * w * y;
+
+            mat.col_mut(1)[0] = 2. * x * y - 2. * w * z;
+            mat.col_mut(1)[1] = w * w + y * y - x * x - z * z;
+            mat.col_mut(1)[2] = 2. * y * z + 2. * w * x;
+
+            mat.col_mut(2)[0] = 2. * x * z + 2. * w * y;
+            mat.col_mut(2)[1] = 2. * y * z - 2. * w * x;
+            mat.col_mut(2)[2] = w * w + z * z - x * x - y * y;
+
+            let crate::Vec3 { i: x, j: y, k: z } = dq.to_translation();
+            mat.col_mut(3)[0] = x;
+            mat.col_mut(3)[1] = y;
+            mat.col_mut(3)[2] = z;
+            mat
         }
     }
 }

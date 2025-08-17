@@ -2,6 +2,7 @@ use crate::{DualQuaternion, Quaternion, Vec3};
 
 pub const FORWARD: Vec3 = Vec3::new(1.0, 0.0, 0.0);
 pub const UP: Vec3 = Vec3::new(0.0, 0.0, 1.0);
+pub const RIGHT: Vec3 = Vec3::new(0.0, 1.0, 0.0);
 
 use nanorand::{Rng, WyRand};
 
@@ -120,11 +121,12 @@ pub(crate) fn gen_rand_dq(class: Option<Class>) -> DualQuaternion {
 }
 
 pub(crate) fn eps_equal(
-    first: impl Iterator<Item = f64>,
-    second: impl Iterator<Item = f64>,
+    first: impl IntoIterator<Item = f64>,
+    second: impl IntoIterator<Item = f64>,
     eps: f64,
 ) -> bool {
     first
+        .into_iter()
         .zip(second)
         .filter(|(val1, val2)| (val1 - val2).abs() > eps)
         .count()
