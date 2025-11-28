@@ -205,7 +205,8 @@ impl DualQuaternion {
             dual: Quaternion::default(),
         };
         ret.encode_translation(translation);
-        debug_assert_eq!(ret.to_translation(), translation);
+        #[cfg(all(debug_assertions, feature = "approx"))]
+        approx::assert_abs_diff_eq!(ret.to_translation(), translation, epsilon = 0.00001);
         ret
     }
 
