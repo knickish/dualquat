@@ -326,8 +326,10 @@ impl Quaternion {
         }
     }
 
+    /// Return the local rotation which changes `self` into `other` when it is
+    /// post-multiplied: `self * self.error(other) == other` for unit rotations.
     pub fn error(self, other: Self) -> Quaternion {
-        other.conjugate() * self
+        self.conjugate() * other
     }
 
     pub fn slerp(self, mut end: Self, s: f64) -> Self {
@@ -339,13 +341,22 @@ impl Quaternion {
             dot = -dot;
         }
 
-        let theta = dot.acos();
+        // Equal (including opposite-sign) and nearly equal orientations need
+        // normalized lerp: sin(theta) approaches zero in the slerp formula.
+        if dot > 0.9995 {
+            return (self * (1.0 - s) + end * s).normalized();
+        }
+
+        let theta = dot.clamp(-1.0, 1.0).acos();
 
         let scale1 = (theta * (1.0 - s)).sin();
         let scale2 = (theta * s).sin();
         let theta_sin = theta.sin();
 
-        self.mul(scale1).add(end.mul(scale2)).mul(theta_sin.recip())
+        self.mul(scale1)
+            .add(end.mul(scale2))
+            .mul(theta_sin.recip())
+            .normalized()
     }
 
     pub fn relative_to(self, other: Self) -> Self {
@@ -515,9 +526,12 @@ mod test {
                 let end_dir = gen_rand_vec().unit();
                 let end_orient = Quaternion::look_along(end_dir, FORWARD, UP);
                 let conversion = start_orient.error(end_orient);
-                if (conversion * start_orient).get_heading(FORWARD) != end_dir {
-                    pretty_assertions::assert_eq!(end_orient.get_heading(FORWARD), end_dir);
-                }
+                let converted = start_orient * conversion;
+                assert!(eps_equal(
+                    converted.get_heading(FORWARD),
+                    end_dir,
+                    f32::EPSILON as f64
+                ));
             }
         }
 

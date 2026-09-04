@@ -123,6 +123,30 @@ mod glam {
             mat
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::{DualQuaternion, Quaternion, TaitBryan, Vec3};
+
+        #[test]
+        fn dual_quaternion_matrix_matches_glam_rotation_translation() {
+            let rotation = Quaternion::from_tait_bryan(TaitBryan {
+                roll: 0.31,
+                pitch: -0.47,
+                yaw: 0.82,
+            })
+            .normalized();
+            let translation = Vec3::new(3.0, -4.0, 5.0);
+            let pose = DualQuaternion::from_rotation_translation(rotation, translation);
+
+            let actual = glam::DMat4::from(pose);
+            let expected = glam::DMat4::from_rotation_translation(
+                glam::DQuat::from(rotation),
+                glam::DVec3::from(translation),
+            );
+            assert!(actual.abs_diff_eq(expected, 1e-12));
+        }
+    }
 }
 
 #[cfg(feature = "nalgebra")]
